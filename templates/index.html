@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <title>To-Do List</title>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+    <style>
+        body {
+            background: #121212;
+            color: white;
+            display: flex;
+            height: 100vh;
+            margin: 0;
+        }
+        #tasks-panel {
+            width: 40%;
+            padding: 20px;
+            border-right: 2px solid #444;
+            overflow-y: auto;
+        }
+        #calendar {
+            flex: 1;
+            padding: 20px;
+        }
+        .task {
+            background: #333;
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        input, button {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Tasks Panel -->
+    <div id="tasks-panel">
+        <h2 id="selected-date">Избери дата от календара</h2>
+        <ul id="tasks-list"></ul>
+        <form id="task-form" style="display:none;">
+            <input type="text" id="task-input" placeholder="Въведи задача">
+            <button type="submit">Добави</button>
+        </form>
+    </div>
+
+    <!-- Calendar -->
+    <div id="calendar"></div>
+
+    <script>
+        let selectedDate = null;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            let calendarEl = document.getElementById('calendar');
+          let calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: 'dayGridMonth',
+    headerToolbar: {
+        left: 'prev,next',   
+        center: 'title',
+        right: ''            
+    },
+    dateClick: function(info) {
+        selectedDate = info.dateStr;
+        document.getElementById("selected-date").innerText = "To-do List -" + selectedDate;
+        document.getElementById("task-form").style.display = "block";
+        loadTasks(selectedDate);
+    },
+    events: '/events'
+});
+
+            calendar.render();
+
+            // Add new task
+            document.getElementById("task-form").addEventListener("submit", function(e) {
+                e.preventDefault();
+                let content = document.getElementById("task-input").value;
+                fetch("/add_task", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({content: content, due_date: selectedDate})
+                }).then(res => res.json())
+                  .then(data => {
+                      document.getElementById("task-input").value = "";
+                      loadTasks(selectedDate);
+                      calendar.refetchEvents(); 
+                  });
+            });
+        });
+
+        // Load tasks for a specific date
+       function loadTasks(date) {
+    fetch("/tasks/" + date)
+        .then(res => res.json())
+        .then(data => {
+            let list = document.getElementById("tasks-list");
+            list.innerHTML = "";
+            data.forEach(task => {
+                let li = document.createElement("li");
+                li.className = "task";
+
+                li.innerText = task.content;
+
+                // Delete button
+                let delBtn = document.createElement("button");
+                delBtn.innerText = "Delete";
+                delBtn.style.marginLeft = "10px";
+                delBtn.onclick = () => {
+                    fetch("/delete_task/" + task.id, { method: "DELETE" })
+                        .then(res => res.json())
+                        .then(() => {
+                            loadTasks(date); 
+                            calendar.refetchEvents(); 
+                        });
+                };
+
+                li.appendChild(delBtn);
+                list.appendChild(li);
+            });
+        });
+}
+    </script>
+</body>
+</html>
